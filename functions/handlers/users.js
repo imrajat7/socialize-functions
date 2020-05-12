@@ -16,6 +16,22 @@ const isEmpty = (string)=>{
   else return false;
 }
 
+const reduceUserDetails = (data)=>{
+  let userDetails = {};
+
+  if(!isEmpty(data.bio.trim())) userDetails.bio = data.bio;
+  if(!isEmpty(data.website.trim())){
+    if(data.website.trim().substring(0,4) !== 'http')
+      userDetails.website = `http://${data.website.trim()}`;
+    else userDetails.website = data.website;
+  }
+  if(!isEmpty(data.location.trim())) userDetails.location = data.location;
+
+  return userDetails;
+}
+
+// Signup
+
 exports.signup = (req,res)=>{
 
   const newUser = {
@@ -80,6 +96,8 @@ exports.signup = (req,res)=>{
     })
 }
 
+// login
+
 exports.login = (req,res)=>{
   const user = {
     email: req.body.email,
@@ -108,6 +126,47 @@ exports.login = (req,res)=>{
         return res.status(500).json({error: err.code});
     })
 }
+
+// To add user details
+
+exports.addUserDetails = (req,res)=>{
+  let userDetails = reduceUserDetails(req.body);
+
+  db.doc(`/users/${req.user.handle}`).update(userDetails)
+  .then(()=>{
+    return res.json({message: 'Details added successfully'});
+  })
+  .catch(err=>{
+    console.error(err);
+    res.json(500).json({error: err.code});
+  })
+}
+
+// To get the loggedIn/Authenticated User
+exports.getAuthenticatedUser = (req,res)=>{
+  let userData = {};
+  db.doc(`/users/${req.user.handle}`)
+  .get()
+  .then(doc=>{
+    if(doc.exists){
+      userData.credentials =  doc.data();
+      return db.collection('likes').where('userHandle','==',req.user.handle).get()
+    }
+  })
+  .then(data=>{
+    userData.likes = [];
+    data.forEach(doc=>{
+      userData.likes.push(doc.data());
+    });
+    return res.json(userData);
+  })
+  .catch(err=>{
+    console.log(console.error(err));
+    return res.status(500).json({error: err.code});
+  });
+}
+
+// for uploading image of user
 
 exports.uploadImage = (req,res)=>{
   var BusBoy = require('busboy');
