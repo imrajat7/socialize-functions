@@ -31,14 +31,19 @@ exports.postOneScream = (req,res)=>{
   const newScream = {
     userHandle: req.user.handle,
     body: req.body.body,
+    user: req.user.imageUrl,
     createdAt: new Date().toISOString(),
+    likeCount: 0,
+    commentCount: 0,
   }
 
   db
     .collection('screams')
     .add(newScream)
     .then(doc=>{
-      res.json({'message': `document ${doc.id} created.`})
+      const resScream = newScream;
+      resScream.id = doc.id;
+      res.json(resScream);
     })
     .catch(err=>{
       res.status(500).json({error: 'Something went wrong.'});
@@ -46,6 +51,7 @@ exports.postOneScream = (req,res)=>{
     });
 }
 
+// fetch one scream
 exports.getScream = (req,res)=>{
   let screamData = {};
   db.doc(`/screams/${req.params.screamId}`)
@@ -58,6 +64,7 @@ exports.getScream = (req,res)=>{
     screamData.screamId = doc.id;
     return db
     .collection('comments')
+    .orderBy('createdAt','desc')
     .where('screamId','==',req.params.screamId)
     .get();
   })
@@ -72,4 +79,110 @@ exports.getScream = (req,res)=>{
     console.error(err);
     return res.status(500).json({error: err.message});
   })
+}
+
+exports.commentOnScream = (req,res)=>{
+  if(req.body.body.trim()=== '') return res.status(400).json({error: 'Must not be Empty'});
+
+  const newComment = {
+    body: req.body.body,
+    createdAt: new Date().toISOString(),
+    screamId: req.params.screamId,
+    userHandle: req.user.handle,
+    userImage: req.user.imageUrl
+  }
+
+  db.doc(`/screams/${req.params.screamId}`).get()
+  .then(doc=>{
+    if(!doc.exists){
+      res.status(404).json({error: 'Scream not found'});
+    }
+    return db.collection('comments').add(newComment);
+  })
+  .then(()=>{
+    res.json(newComment);
+  })
+  .catch(err=>{
+    console.log(err);
+    res.status(500).json({error: 'Something went wrong'});
+  })
+}
+
+exports.likeScream = (req,res)=>{
+  const likeDocument = db.collection('likes').where('userHandle','==',req.user.handle)
+    .where('screamId','==', req.params.screamId).limit(1);
+  
+    const screamDocument = db.doc(`/screams/${req.params.screamId}`);
+
+    let screamData = {};
+
+    screamDocument.get()
+    .then(doc=>{
+      if(doc.exists){
+        screamData = doc.data();
+        screamData.screamId = doc.id;
+        return likeDocument.get();
+      }else{
+        return res.status(404).json({error: 'Scream not found'});
+      }
+    })
+    .then(data=>{
+      if(data.empty){
+        return db.collection('likes').add({
+          userHandle: req.user.handle,
+          screamId: req.params.screamId
+        })
+        .then(()=>{
+          screamData.likeCount++;
+          return screamDocument.update({likeCount: screamData.likeCount})
+        })
+        .then(()=>{
+          res.json(screamData);
+        })
+      }else{
+        return res.status(400).json({error: 'Scream already liked'});
+      }
+    })
+    .catch(err=>{
+      console.error(err);
+      res.status(500).json({error: err.code});
+    })
+}
+
+exports.unlikeScream = (req,res)=>{
+  const likeDocument = db.collection('likes').where('userHandle','==',req.user.handle)
+    .where('screamId','==', req.params.screamId).limit(1);
+  
+    const screamDocument = db.doc(`/screams/${req.params.screamId}`);
+
+    let screamData = {};
+
+    screamDocument.get()
+    .then(doc=>{
+      if(doc.exists){
+        screamData = doc.data();
+        screamData.screamId = doc.id;
+        return likeDocument.get();
+      }else{
+        return res.status(404).json({error: 'Scream not found'});
+      }
+    })
+    .then(data=>{
+      if(data.empty){
+        return res.status(400).json({error: 'Scream not liked'});
+      }else{
+        return db.doc(`/likes/${data.docs[0].id}`).delete()
+          .then(()=>{
+            screamData.likeCount--;
+            return screamDocument.update({likeCount: screamData.likeCount});
+          })
+          .then(()=>{
+            res.json(screamData);
+          })
+      }
+    })
+    .catch(err=>{
+      console.error(err);
+      res.status(500).json({error: err.code});
+    })
 }
