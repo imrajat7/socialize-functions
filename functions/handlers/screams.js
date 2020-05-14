@@ -31,7 +31,7 @@ exports.postOneScream = (req,res)=>{
   const newScream = {
     userHandle: req.user.handle,
     body: req.body.body,
-    user: req.user.imageUrl,
+    userImage: req.user.imageUrl,
     createdAt: new Date().toISOString(),
     likeCount: 0,
     commentCount: 0,
@@ -95,12 +95,15 @@ exports.commentOnScream = (req,res)=>{
   db.doc(`/screams/${req.params.screamId}`).get()
   .then(doc=>{
     if(!doc.exists){
-      res.status(404).json({error: 'Scream not found'});
+      return res.status(404).json({error: 'Scream not found'});
     }
+    return doc.ref.update({commentCount: doc.data().commentCount++});
+  })
+  .then(()=>{
     return db.collection('comments').add(newComment);
   })
   .then(()=>{
-    res.json(newComment);
+    return res.json(newComment);
   })
   .catch(err=>{
     console.log(err);
@@ -185,4 +188,28 @@ exports.unlikeScream = (req,res)=>{
       console.error(err);
       res.status(500).json({error: err.code});
     })
+}
+
+// delete scream
+exports.deleteScream = (req,res)=>{
+  const document = db.doc(`/screams/${req.params.screamId}`);
+
+  document.get()
+  .then(doc=>{
+    if(!doc.exists){
+      return res.status(404).json({error: 'record not found'});
+    }
+    if(doc.data().userHandle !== req.user.handle){
+      res.status(403).json({error: 'Unauthorized'});
+    }else{
+      return document.delete();
+    }
+  })
+  .then(()=>{
+    res.json({message: 'Scream deleted successfully'});
+  })
+  .catch(err=>{
+    console.error(err);
+    res.status(500).json({error: err.code});
+  })
 }
