@@ -101,7 +101,7 @@ exports.commentOnScream = (req,res)=>{
     if(!doc.exists){
       return res.status(404).json({error: 'Scream not found'});
     }
-    return doc.ref.update({commentCount: doc.data().commentCount++});
+    return doc.ref.update({commentCount: doc.data().commentCount + 1});
   })
   .then(()=>{
     return db.collection('comments').add(newComment);
@@ -190,7 +190,7 @@ exports.unlikeScream = (req,res)=>{
     })
     .catch(err=>{
       console.error(err);
-      res.status(500).json({error: err.code});
+      return res.status(500).json({error: err.code});
     })
 }
 
@@ -204,7 +204,7 @@ exports.deleteScream = (req,res)=>{
       return res.status(404).json({error: 'record not found'});
     }
     if(doc.data().userHandle !== req.user.handle){
-      res.status(403).json({error: 'Unauthorized'});
+      return res.status(403).json({error: 'Unauthorized'});
     }else{
       return document.delete();
     }
@@ -214,6 +214,6 @@ exports.deleteScream = (req,res)=>{
   })
   .catch(err=>{
     console.error(err);
-    res.status(500).json({error: err.code});
+    return res.status(500).json({error: err.code});
   })
 }
